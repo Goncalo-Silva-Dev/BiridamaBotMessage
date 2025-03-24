@@ -23,7 +23,7 @@ except Exception as e:
 # Função para obter detalhes dos itens do pedido
 def obter_itens_pedido(row):
     itens = []
-    for i in range(1, 4):  # Assumindo até 3 produtos por pedido
+    for i in range(1, 5):  # Assumindo até 4 produtos por pedido
         produto = row.get(f"Produto{i}", "").strip() if isinstance(row.get(f"Produto{i}"), str) else ""
         quantidade = row.get(f"Quantidade{i}", 0)
         preco = row.get(f"Preço unitario{i}", 0)
@@ -42,16 +42,31 @@ def obter_itens_pedido(row):
 # Função para criar mensagem baseada no tipo selecionado no Excel
 def criar_mensagem(row):
     tipo_mensagem = row.get("Tipo de Mensagem", "").strip().lower()
-    envio_custo = row.get("Envio €", 0) if pd.notna(row.get("Envio ?")) else 0
+    
+    # Verificar se "Envio ?" é 1 para definir o custo de envio
+    envio_custo = row.get("Envio €", 0) if row.get("Envio ?", 0) == 1 else 0
+    
     pagamento_status = "Pago" if row.get("Pago ?", 0) == 1 else "Por Pagar"
     itens_pedido = obter_itens_pedido(row)
-    total = row.get("Total", 0)
+    
+    # Tente obter o total da coluna "Total", se não estiver disponível, calcule a partir dos itens
+    total = row.get("Total")
+    
+    # Se o total não estiver disponível ou não for um número, calcule a partir dos itens
+    if pd.isna(total) or total is None:
+        total = sum([int(row.get(f"Quantidade{i}", 0)) * float(row.get(f"Preço unitario{i}", 0)) 
+                    for i in range(1, 5) 
+                    if pd.notna(row.get(f"Produto{i}")) and row.get(f"Produto{i}") != ""])
+    
+    # Garantir que total é um número
+    if total is None or not isinstance(total, (int, float)):
+        total = 0.0  # Defina um valor padrão se total não for válido
 
     mensagens = {
-        "nova_reserva": f"Olá {row['User']}, a sua reserva foi registada.\n\n{itens_pedido}\n\nValor total dos artigos: {total_item:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: {pagamento_status}\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!",
-        "reserva_alterada": f"Olá {row['User']}, a sua reserva foi alterada.\n\n{itens_pedido}\n\nValor total dos artigos: {total_item:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: {pagamento_status}\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!",
-        "pagamento_recebido": f"Olá {row['User']}, recebemos o pagamento da sua reserva.\n\n{itens_pedido}\n\nValor total dos artigos: {total_item:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: Pago\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!",
-        "aviso_pagamento": f"Olá {row['User']}, os artigos reservados estão prestes a chegar.\n\n{itens_pedido}\n\nValor total dos artigos: {total_item:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: {pagamento_status}\nTotal: {total + envio_custo:.2f}€\n\nPodes efetuar o pagamento através de:\nMB Way: 913 591 959\nRevolut: 913 591 959\nPayPal: canaljmbr@gmail.com\nTransferência bancária: PT50 0036 0359 99103764767 67\nAté breve"
+        "nova_reserva": f"Olá {row['User']}, a sua reserva foi registada.\n\n{itens_pedido}\n\nValor total dos artigos: {total:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: {pagamento_status}\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!",
+        "reserva_alterada": f"Olá {row['User']}, a sua reserva foi alterada.\n\n{itens_pedido}\n\nValor total dos artigos: {total:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: {pagamento_status}\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!",
+        "pagamento_recebido": f"Olá {row['User']}, recebemos o pagamento da sua reserva.\n\n{itens_pedido}\n\nValor total dos artigos: {total:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: Pago\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!",
+        "aviso_pagamento": f"Olá {row['User']}, os artigos reservados estão prestes a chegar.\n\n{itens_pedido}\n\nValor total dos artigos: {total:.2f}€\nEnvio: {envio_custo:.2f}€\nEstado de pagamento: {pagamento_status}\nTotal: {total + envio_custo:.2f}€\nObrigado pela sua compra!"
     }
     
     return mensagens.get(tipo_mensagem, None)
